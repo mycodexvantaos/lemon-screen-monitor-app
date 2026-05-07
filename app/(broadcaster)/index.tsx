@@ -1,20 +1,23 @@
-import { ScrollView, Text, View, TouchableOpacity } from 'react-native';
+import { ScrollView, Text, View, TouchableOpacity, Image } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRoom } from '@/lib/use-room';
+import { useQRCode } from '@/lib/use-qrcode';
 
 export default function BroadcasterScreen() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [roomId] = useState('ABC123DEF456');
-  const [connectedViewers, setConnectedViewers] = useState(0);
+  const { roomState, generateRoomId, updateViewerCount, resetRoom } = useRoom('broadcaster');
+  const { qrCodeUrl, isGenerating } = useQRCode(roomState.roomId);
 
   const handleStartBroadcast = () => {
+    const newRoomId = generateRoomId();
     setIsBroadcasting(true);
-    setConnectedViewers(0);
+    updateViewerCount(0);
   };
 
   const handleStopBroadcast = () => {
     setIsBroadcasting(false);
-    setConnectedViewers(0);
+    resetRoom();
   };
 
   return (
@@ -40,12 +43,12 @@ export default function BroadcasterScreen() {
               <View className="gap-3">
                 <View className="gap-1">
                   <Text className="text-xs text-muted">Room ID</Text>
-                  <Text className="text-lg font-mono font-bold text-primary">{roomId}</Text>
+                  <Text className="text-lg font-mono font-bold text-primary">{roomState.roomId}</Text>
                 </View>
 
                 <View className="gap-1">
                   <Text className="text-xs text-muted">Connected Viewers</Text>
-                  <Text className="text-lg font-bold text-foreground">{connectedViewers}</Text>
+                  <Text className="text-lg font-bold text-foreground">{roomState.viewerCount}</Text>
                 </View>
 
                 <View className="bg-warning/10 rounded p-3">
@@ -58,11 +61,19 @@ export default function BroadcasterScreen() {
           </View>
 
           {/* QR Code Placeholder */}
-          {isBroadcasting && (
+          {isBroadcasting && qrCodeUrl && (
             <View className="bg-surface rounded-lg p-6 gap-4 border border-border items-center">
               <Text className="text-sm text-muted">QR Code for Viewers</Text>
-              <View className="w-40 h-40 bg-background rounded border-2 border-border items-center justify-center">
-                <Text className="text-xs text-muted">[QR Code]</Text>
+              <View className="w-40 h-40 bg-background rounded border-2 border-border items-center justify-center overflow-hidden">
+                {isGenerating ? (
+                  <Text className="text-xs text-muted">Generating...</Text>
+                ) : (
+                  <Image
+                    source={{ uri: qrCodeUrl }}
+                    style={{ width: 160, height: 160 }}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
               <Text className="text-xs text-muted text-center">
                 Viewers can scan this QR code to connect
