@@ -1,0 +1,134 @@
+# Cloudflare Worker Deployment Workflow
+# Deploys the SentinelCore Worker API to Cloudflare Workers with KV storage
+name: Deploy Worker to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web-deploy/worker.js'
+      - 'web-deploy/wrangler.toml'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: 2fead4a141ec2c677eb3bf0ac535f1d5
+
+jobs:
+  deploy-worker:
+    name: Deploy SentinelCore Worker
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler
+
+      - name: Create KV namespace (if not exists)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd web-deploy
+          
+          # Try to get existing namespace
+          KV_ID=$(wrangler kv namespace list 2>/dev/null | grep -oP 'id="\K[^"]+' || echo "")
+          
+          if [ -z "$KV_ID" ]; then
+            echo "Creating new KV namespace..."
+            wrangler kv namespace create SCREEN_MONITOR_KV --preview=false
+            KV_ID=$(wrangler kv namespace list | grep -oP 'id="\K[^"]+')
+            echo "Created KV namespace with ID: $KV_ID"
+          else
+            echo "KV namespace already exists with ID: $KV_ID"
+          fi
+          
+          echo "KV_NAMESPACE_ID=$KV_ID" >> $GITHUB_ENV
+
+      - name: Update wrangler.toml with KV namespace ID
+        run: |
+          cd web-deploy
+          
+          # Replace placeholder with actual KV namespace ID
+          sed -i "s/id = \"SCREEN_MONITOR_KV_NAMESPACE_ID\"/id = \"$KV_NAMESPACE_ID\"/" wrangler.toml
+          
+          echo "Updated wrangler.toml with KV namespace ID: $KV_NAMESPACE_ID"
+          cat wrangler.toml
+
+      - name: Deploy Worker to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          cd web-deploy
+          
+          # Deploy the worker
+          wrangler deploy --env production
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for deployment to propagate..."
+          sleep 10
+          
+          # Test the health endpoint
+          RESPONSE=$(curl -s https://api.autoecoops.io/api/health || echo "")
+          
+          if echo "$RESPONSE" | grep -q "healthy"; then
+            echo "✅ Worker deployed successfully!"
+            echo "Health check response:"
+            echo "$RESPONSE"
+          else
+            echo "⚠️ Worker deployed but health check failed"
+            echo "Response: $RESPONSE"
+          fi
+
+      - name: Test key generation endpoint
+        run: |
+          # Test key generation
+          RESPONSE=$(curl -s -X POST https://api.autoecoops.io/api/keys/generate \
+            -H "Content-Type: application/json" \
+            -d '{"deviceInfo":"test-deployment"}' || echo "")
+          
+          if echo "$RESPONSE" | grep -q "key"; then
+            echo "✅ Key generation endpoint working!"
+            echo "$RESPONSE"
+          else
+            echo "⚠️ Key generation endpoint test failed"
+            echo "Response: $RESPONSE"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "  🚀 SentinelCore Worker Deployment Summary"
+          echo "═══════════════════════════════════════════════════════════════"
+          echo ""
+          echo "  Environment: ${{ github.event.inputs.environment || 'production' }}"
+          echo "  Account ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}"
+          echo "  KV Namespace: ${{ env.KV_NAMESPACE_ID }}"
+          echo ""
+          echo "  API Endpoint: https://api.autoecoops.io"
+          echo "  Health Check: https://api.autoecoops.io/api/health"
+          echo ""
+          echo "  Deployed at: $(date -u)"
+          echo "═══════════════════════════════════════════════════════════════"
