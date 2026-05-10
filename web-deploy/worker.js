@@ -434,25 +434,49 @@ function getMockRules() {
 // 輔助函數
 // ══════════════════════════════════════════════════════════════════════════════
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, request = null) {
+  let allowOrigin = 'https://autoecoops.io';
+  if (request) {
+    const origin = request.headers.get('Origin') || '';
+    const allowed = [
+      'https://autoecoops.io',
+      'https://www.autoecoops.io',
+      'https://app.autoecoops.io',
+      'http://localhost:8787',
+      'http://localhost:3000',
+    ];
+    if (allowed.includes(origin)) allowOrigin = origin;
+  }
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
     },
   });
 }
 
-function handleCORS() {
+function handleCORS(request) {
+  const origin = request.headers.get('Origin') || '';
+  const allowed = [
+    'https://autoecoops.io',
+    'https://www.autoecoops.io',
+    'https://app.autoecoops.io',
+    'http://localhost:8787',
+    'http://localhost:3000',
+  ];
+  const allowOrigin = allowed.includes(origin) ? origin : allowed[0];
+
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Max-Age': '86400',
     },
   });
@@ -469,7 +493,7 @@ export default {
 
     // CORS 預檢請求
     if (request.method === 'OPTIONS') {
-      return handleCORS();
+      return handleCORS(request);
     }
 
     // ═══ 金鑰配對 API ═══
