@@ -1,0 +1,23 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "lemon-screen-monitor-app-dev"
+compatibility_date = "2025-05-07"
+compatibility_flags = ["nodejs_compat"]
+
+# 本地開發模式 — 使用本地 KV（不需要真實 namespace ID）
+[[kv_namespaces]]
+binding = "SCREEN_MONITOR_KV"
+id = "local-dev-kv"
+preview_id = "local-dev-kv"
+
+# 本地開發不需要自訂網域路由
+
+# Pages project configuration
+[site]
+bucket = "."
+
+# Environment variables
+[vars]
+APP_ENV = "development"
+APP_NAME = "SentinelCore"
+APP_VERSION = "3.0.0"
+ALLOWED_ORIGINS = "http://localhost:8787,http://localhost:8080,http://localhost:3000,https://autoecoops.io"

@@ -19,9 +19,13 @@
 // API 基礎設定
 // ═══════════════════════════════════════════════════════════════
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8787'  // 本地開發用 Worker
-  : 'https://api.autoecoops.io';  // 官方 API 網域
+const API_BASE = (() => {
+  const h = window.location.hostname;
+  // 本地開發：前端和 Worker 都在 localhost
+  if (h === 'localhost' || h === '127.0.0.1') return `http://${h}:8080`;
+  // 正式部署：使用官方 API 網域
+  return 'https://api.autoecoops.io';
+})();
 
 async function api(endpoint, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };

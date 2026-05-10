@@ -444,6 +444,7 @@ function jsonResponse(data, status = 200, request = null) {
       'https://app.autoecoops.io',
       'http://localhost:8787',
       'http://localhost:3000',
+      'http://localhost:8080',
     ];
     if (allowed.includes(origin)) allowOrigin = origin;
   }
@@ -467,6 +468,7 @@ function handleCORS(request) {
     'https://app.autoecoops.io',
     'http://localhost:8787',
     'http://localhost:3000',
+    'http://localhost:8080',
   ];
   const allowOrigin = allowed.includes(origin) ? origin : allowed[0];
 
@@ -486,10 +488,44 @@ function handleCORS(request) {
 // 主請求處理器
 // ══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * 本地開發用 KV 模擬器
+ * 在 wrangler dev 沒有綁定真實 KV 時自動啟用
+ */
+function createLocalKV() {
+  const store = new Map();
+  return {
+    async get(key) {
+      const val = store.get(key);
+      return val || null;
+    },
+    async put(key, value) {
+      store.set(key, value);
+    },
+    async delete(key) {
+      store.delete(key);
+    },
+    async list(prefix) {
+      const keys = [];
+      for (const k of store.keys()) {
+        if (!prefix || k.startsWith(prefix)) {
+          keys.push({ name: k });
+        }
+      }
+      return { keys };
+    },
+  };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // 開發模式：如果沒有 KV binding，自動建立本地模擬 KV
+    if (!env.SCREEN_MONITOR_KV) {
+      env.SCREEN_MONITOR_KV = createLocalKV();
+    }
 
     // CORS 預檢請求
     if (request.method === 'OPTIONS') {
